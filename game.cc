@@ -1,6 +1,6 @@
 #include "game.h"
 
-Game::Game(): board{new Board()}, view{new View(this->board.get())} {
+Game::Game(int seed): rng{new RNG(seed)}, board{new Board()}, view{new View(this->board.get())}, devCards{new DevCards(this->rng.get())} {
     for (int i = 0; i < 4; ++i) {
         players.emplace_back(new Player(i));
     }
@@ -12,6 +12,7 @@ void Game::load(string fileName) {
     ifstream f{fileName};
     f >> turn;
     int num; string s; string line;
+
     getline(f, line);
     for (int i = 0; i < numPlayers; i++) {
         getline(f, line);
@@ -37,19 +38,36 @@ void Game::load(string fileName) {
             players[i]->addPoint();
         }
     }
+
     getline(f, line);
     stringstream ss{line};
-    vector<int> res; vector<int> val;
+    vector<Resource> res; vector<int> val;
     for (int i = 0; i < 19; i++) {
-        ss >> num; res.emplace_back(num);
+        ss >> num; res.emplace_back(Resource(num));
         ss >> num; val.emplace_back(num);
     }
     setBoard(res, val);
+
     f >> num;
     board->moveRobber(num);
+
+    getline(f, line);
+    devCards->loadSaveState(line);
 }
 
-void Game::setBoard(vector<int> resources, vector<int> vals) {
+void Game::setRandomBoard() {
+    // 4 grain, 4 lumber, 3 bricks, 3 ore, 4 wool
+    vector<Resource> resources = {Brick, Brick, Brick, Grain, Grain, Grain, Grain, Lumber, Lumber, Lumber, Lumber, Ore, Ore, Ore, Wool, Wool, Wool, Wool};
+    vector<int> vals = {2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12, 7};
+    rng->shuffle(begin(resources), end(resources));
+    rng->shuffle(begin(vals), end(vals));
+    for (int i = 0; i < 19; i++) {
+        if (vals[i] == 7) { resources.insert(resources.begin()+i, Desert); break; }
+    }
+    setBoard(resources, vals);
+}
+
+void Game::setBoard(vector<Resource> resources, vector<int> vals) {
     for (int i = 0; i < 19; i++) {
         Tile* t = board->getTile(i);
         t->setResource(resources[i]);
@@ -71,10 +89,24 @@ bool Game::legalRoad(int edge) const {
     return true;
 }
 
+// DFS to find longest road
+int Game::getRoadLength(vector<int> path) const {
+    int maxLen = path.size();
+    vector<int> nbs = board->getEdge(path.back())->getAdjRoads();
+    for (int e : nbs) {
+        for (int i = 0; i < int(path.size()); i++) { if (path[i] == e) { continue; }}
+        path.emplace_back(e);
+        maxLen = max(maxLen, getRoadLength(path));
+        path.pop_back();
+    }
+    return maxLen;
+}
+
 void Game::buildRoad(int edge) const {
     board->getEdge(edge)->build(turn);
     players[turn]->resourceLoss(roadMats);
     players[turn]->addEdge(board->getEdge(edge));
+    devCards->playRoad(turn, getRoadLength({edge}));
     view->successBuild();
 }
 
@@ -127,21 +159,114 @@ void Game::improve(int vertex) const {
     view->successBuild();
 }
 
-bool Game::legalTrade(int other, int give, int take) const {
-    if (other == turn) { view->print("You can't trade with yourself"); return false; }
-    if (!players[turn]->hasResources(vector<pair<int, int>>{{give, 1}})
-        || !players[other]->hasResources(vector<pair<int, int>>{{take, 1}})) {
+void Game::richTax() const {
+    //Tax the rich
+    for (int i = 0; i < numPlayers; ++i) {
+        if (players[i]->resourceSum() > 7) {
+            int numLost = players[i]->resourceSum()/2;
+            vector<int> losses = players[i]->richTax(numLost);
+            view->printRobberLoss(i, numLost, losses);
+        }
+    }
+}
+bool Game::robberAction() const {
+    //Player gets to steal
+    int newTile = view->getRobberTile(board->getRobberPos());
+    vector<bool> canSteal = board->moveRobber(newTile);
+    canSteal[turn] = false;
+    for (int i = 0; i < numPlayers; i++) {
+        if (players[turn]->resourceSum() == 0) canSteal[i] = false;
+    }
+    int selection = view->getVictim(turn, canSteal);
+    if (selection == -1) { return true; }
+    if (canSteal[selection]) {
+        int resource =  players[selection]->resourceLossRandom();
+        players[turn]->resourceGain(resource, 1);
+        view->robberSuccess(turn, selection, resource);
+    }
+    return false;
+}
+
+bool Game::legalTrade(int other, int give, int giveAmount, int take, int takeAmount) const {
+    if (other == turn) { view->printLn("You can't trade with yourself"); return false; }
+    if (!players[turn]->hasResources(vector<pair<int, int>>{{give, giveAmount}})
+        || !players[other]->hasResources(vector<pair<int, int>>{{take, takeAmount}})) {
         view->invalidResources();
         return false;
     }
     return true;
 }
 
-void Game::trade(int other, int give, int take) const {
-    players[turn]->resourceLoss(give, 1);
-    players[other]->resourceGain(give, 1);
-    players[other]->resourceLoss(take, 1);
-    players[turn]->resourceGain(take, 1);
+void Game::trade(int other, int give, int giveAmount, int take, int takeAmount) const {
+    players[turn]->resourceLoss(give, giveAmount);
+    players[other]->resourceGain(give, giveAmount);
+    players[other]->resourceLoss(take, takeAmount);
+    players[turn]->resourceGain(take, takeAmount);
+}
+
+vector<int> Game::getResourceInput(int numResources) const {
+    string input;
+    vector<int> resources;
+
+    while (true) {
+        view->printLn("Enter " + to_string(numResources) + " resource name(s): ");
+        getline(cin, input);
+
+        istringstream iss(input);
+        vector<string> words;
+        string temp;
+        while (iss >> temp) words.push_back(temp);
+
+        resources = {};
+        for (int i = 0; i < int(words.size()); i++) {
+            for (int j = 0; j < 5; j++) {
+                if (view->toLower(words[i]) == resourceLower[j]) {
+                    resources.push_back(j);
+                }
+            }
+        }
+        if (int(resources.size()) != numResources) continue;
+        break; // Exit loop once input is valid
+    }
+    return resources;
+}
+
+void Game::useDevCard(DevCard dc) const {
+    if (!devCards->useDevCard(turn, DevCard(dc))) {
+        view->invalidArguments();
+        return;
+    }
+    if (dc == VP) return;
+    if (dc == KNIGHT) {
+        robberAction();
+    } else if (dc == RB) {
+        // build two roads
+        while (true) {
+            int e = view->getNumRange("Build road (1 of 2) on edge#: ", 0, 71);
+            if (legalRoad(e)) {
+                buildRoad(e); break;
+            }
+        }
+        while (true) {
+            int e = view->getNumRange("Build road (2 of 2) on edge#: ", 0, 71);
+            if (legalRoad(e)) {
+                buildRoad(e); break;
+            }
+        }
+    } else if (dc == YOP) {
+        vector<int> rs = getResourceInput(2);
+        players[turn]->resourceGain(rs[0], 1); 
+        players[turn]->resourceGain(rs[1], 1); 
+    } else if (dc == MONOPOLY) {
+        vector<int> rs = getResourceInput(1);
+        for (int i = 0; i < numPlayers; i++) {
+            if (i == turn) continue;
+            if (players[i]->hasResources({{rs[0], 1}})) {
+                players[i]->resourceLoss(rs[0], 1);
+                players[turn]->resourceGain(rs[1], 1); 
+            }
+        }
+    }
 }
 
 // --- misc game elements ---
@@ -155,7 +280,7 @@ bool Game::hasWinner() {
 }
 
 void Game::printVictor() {
-    if (!stopProgram) view->print("Player " + playerColFull[winner] + " has won!");
+    if (!stopProgram) view->printLn("Player " + playerColFull[winner] + " has won!");
 }
 
 bool Game::playAgain() {
@@ -178,7 +303,8 @@ void Game::save(string fileName) {
         file << cur->toStateForm() << " ";
     }
     file << "\n";
-    file << board->getRobberPos();
+    file << board->getRobberPos() << "\n";
+    file << devCards->getSaveState();
 }
 
 // --- game stages ---
@@ -227,31 +353,12 @@ void Game::runTurn() {
         roll = view->setLoadedDice();
         if (roll == -1) { stopProgram = true; return; }
     }
-    view->print("Rolled a " + to_string(roll));
+    view->printLn("Rolled a " + to_string(roll));
 
     if (roll == 7) {
-        //Tax the rich
-        for (int i = 0; i < numPlayers; ++i) {
-            if (players[i]->resourceSum() > 9) {
-                int numLost = players[i]->resourceSum()/2;
-                vector<int> losses = players[i]->richTax(numLost);
-                view->printRobberLoss(i, numLost, losses);
-            }
-        }
-
-        //Player gets to steal
-        int newTile = view->getRobberTile(board->getRobberPos());
-        vector<bool> canSteal = board->moveRobber(newTile);
-        canSteal[turn] = false;
-        for (int i = 0; i < numPlayers; i++) {
-            if (players[turn]->resourceSum() == 0) canSteal[i] = false;
-        }
-        int selection = view->getVictim(turn, canSteal);
-        if (selection == -1) { stopProgram = true; return; }
-        if (canSteal[selection]) {
-            int resource =  players[selection]->resourceLossRandom();
-            players[turn]->resourceGain(resource, 1);
-            view->robberSuccess(turn, selection, resource);
+        richTax();
+        if (robberAction()) {
+            stopProgram = true; return;
         }
     } else { // Non-robber roll
         vector<vector<int>> gains = board->diceRolled(roll);
@@ -284,10 +391,11 @@ void Game::runTurn() {
             case 0: //"board":
                 view->printBoard(); break;
             case 1: //"status":
-                for (int i = 0; i < numPlayers; i++) { view->print(players[i]->getStatus()); }
+                for (int i = 0; i < numPlayers; i++) { view->printLn(players[i]->getStatus()); }
+                view->printLn(devCards->getStatus());
                 break;
-            case 2: //"residences":
-                view->print(players[turn]->getResidences());
+            case 2: //"settlements":
+                view->printLn(players[turn]->getSettlements());
                 break;
             case 3: //"build-road #"
                 if (legalRoad(cmds.first[1])) buildRoad(cmds.first[1]);
@@ -298,17 +406,33 @@ void Game::runTurn() {
             case 5: //"improve #"
                 improve(cmds.first[1]); break;
             case 6: //"trade"
-                if (legalTrade(cmds.first[1], cmds.first[2], cmds.first[3])) {
-                    int response = view->confirmTrade(turn, cmds.first[1], cmds.first[2], cmds.first[3]);
+                if (legalTrade(cmds.first[1], cmds.first[2], cmds.first[3], cmds.first[4], cmds.first[5])) {
+                    int response = view->confirmTrade(turn, cmds.first[1], cmds.first[2], cmds.first[3], cmds.first[4], cmds.first[5]);
                     if (response == -1) { stopProgram = true; return; }
-                    if (response == 1) trade(cmds.first[1], cmds.first[2], cmds.first[3]);
+                    if (response == 1) trade(cmds.first[1], cmds.first[2], cmds.first[3], cmds.first[4], cmds.first[5]);
                 }
                 break;
-            case 7: //"next":
+            case 7: //"buydev"
+                if (!players[turn]->hasResources(vector<pair<int, int>>{{Wool, 1}, {Grain, 1}, {Ore, 1}})) {
+                    view->invalidResources();
+                } else {
+                    devCards->drawDevCard(turn);
+                    players[turn]->resourceLoss(vector<pair<int, int>>{{Wool, 1}, {Grain, 1}, {Ore, 1}});
+                }
+                break;
+            case 8: //"usedev"
+                if (cmds.first[1] < 0 || cmds.first[1] > 4) {
+                    view->invalidInput(); break;
+                }
+                view->printLn(devCards->getStatus(turn));
+                useDevCard(DevCard(cmds.first[1]));
+                break;
+            case 9: //"next":
+                devCards->turnEnd(turn);
                 cmd = "next"; break;
-            case 8: //"save":
+            case 10: //"save":
                 save(cmds.second); break;
-            case 9: //"help":
+            case 11: //"help":
                 view->printHelp(); break;
         }
         if (hasWinner()) return;

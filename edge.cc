@@ -23,3 +23,15 @@ bool Edge::adjValid(int p) const {
     }
     return false;
 }
+
+vector<int> Edge::getAdjRoads() const {
+    vector<int> out;
+    for (auto v : getAdj()) {
+        for (auto e : v->getAdj()) {
+            if (e->getOwner() != getOwner()) continue;
+            if (e->getId() == getId()) continue;
+            out.emplace_back(e->getId());
+        }
+    }
+    return out;
+ }

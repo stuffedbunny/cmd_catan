@@ -10,6 +10,7 @@ public:
     std::string toStrForm() const override;
     void build(int p);
     bool adjValid(int p) const override;
+    std::vector<int> getAdjRoads() const;
 };
 
 #endif

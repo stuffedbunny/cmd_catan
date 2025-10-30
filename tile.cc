@@ -6,7 +6,7 @@ Tile::Tile(int id, int val, int resource, Vertex* a, Vertex* b, Vertex* c, Verte
     id{id}, val{val}, resource{resource}, isRobbed{false}, vertices{{a}, {b}, {c}, {d}, {e}, {f}} {}
 
 string Tile::getVal() {
-    if (id == 7) return "  ";
+    if (val == 7) return "  ";
     return (val < 10 ? " "+to_string(val) : to_string(val));
 }
 

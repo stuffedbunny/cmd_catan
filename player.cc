@@ -3,14 +3,14 @@
 Player::Player(int n): playerNum{n} {}
 
 string Player::getStatus() const {
-    string statusString = playerCol[playerNum] + " has " + to_string(getPts()) + " building points, ";
+    string statusString = playerCol[playerNum] + " has " + to_string(getPts()) + " victory points,";
     for (int i = 0; i < 5; i++) {
-        statusString += to_string(resources[i]) + " " + resourceLower[i];
+        statusString += " " + to_string(resources[i]) + " " + resourceLower[i];
     }
     return statusString;
 }
 
-string Player::getResidences() const {
+string Player::getSettlements() const {
     string out = "";
     for (Vertex* v : vertices) {
         if (out != "") out += "\n";
@@ -41,7 +41,7 @@ int Player::resourceSum() const {
     int sum = 0; for (int i : resources) { sum += i; } return sum;
 }
 
-bool Player::hasResources( const vector<pair<int, int>> lst) const {
+bool Player::hasResources(const vector<pair<int, int>> lst) const {
     for (auto i : lst) {
         if (resources[i.first] < i.second) return false;
     }
@@ -76,7 +76,7 @@ vector<int> Player::richTax(int loss) {
     return losses;
 }
 void Player::addVertex(Vertex* v) {
-    vertices.push_back(v);
+    vertices.emplace_back(v);
     addPoint();
 }
-void Player::addEdge(Edge* e) { edges.push_back(e); }
+void Player::addEdge(Edge* e) { edges.emplace_back(e); }

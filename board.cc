@@ -44,7 +44,7 @@ Board::Board() {
     }
     
     //setting up connectivity
-    ifstream file("vertexAdj.txt");
+    ifstream file("vertexEdgeAdj.txt");
     string lineEdges; int tempEdge;
     for (int vertex = 0; vertex < 54; vertex++) {
         getline(file, lineEdges);

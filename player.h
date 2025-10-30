@@ -11,16 +11,21 @@ using namespace std;
 
 class Player {
     int resources[5] = {0, 0, 0, 0, 0};
-    int buildingPts = 0;
-    bool isFair = false;
+    bool isFair = true;
     int playerNum;
+
+    int buildingPts = 0;
+    int armySize = 0;
+    int longestRoad = 0;
+    vector<int> devCards = {};
 
     vector<Vertex*> vertices;
     vector<Edge*> edges;
+
 public:
     Player(int n);
     string getStatus() const;
-    string getResidences() const;
+    string getSettlements() const;
     string getState() const;
 
     bool getFairness() const;

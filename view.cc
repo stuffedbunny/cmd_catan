@@ -72,65 +72,12 @@ void View::printBoard() const {
     }
 }
 
-// void View::printBoard() const {
-//     out << endl;
-//     int atLine[5] = {0, 4, 0, 4, 0};
-
-//     int curTile[5] = {-7, -9, 0, -8, -5};
-//     int nextTile[19] = {4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, -1, 18, -1, -1, -1, -1};
-
-//     int curVertex = 0;
-//     vector<int> vertexId = {-1, -1, 0, 1, -1, -1, -1, 2, 3, 4, 5, -1};
-//     for (int i = 6; i < 54; i++) {
-//         vertexId.emplace_back(i);
-//         if (i == 47 || i == 51) { vertexId.emplace_back(-1); }
-//         if (i == 51 || i == 53) { vertexId.emplace_back(-1); vertexId.emplace_back(-1); }
-//     }
-
-//     int curEdge = 0;
-//     vector<int> edgeId = {-1, 0, -1, -1, -1, 1, 2, -1, -1, 3, 4, -1, 5, 6, 7, 8, -1};
-//     for (int i = 9; i < 72; i++) {
-//         edgeId.emplace_back(i);
-//         if (i == 62 || i == 66 || i == 70 || i == 71) edgeId.emplace_back(-1);
-//         if (i == 68 || i == 70) { edgeId.emplace_back(-1); edgeId.emplace_back(-1); }
-//     }
-
-//     int turn = 0;
-//     while (curVertex < vertexId.size()) {
-//         if (atLine[turn] == 0) {
-//             out << getStrVertex(vertexId[curVertex++]) << (vertexId[curVertex-1] == -1 ? "  " : "--" )
-//                 << getStrEdge(edgeId[curEdge++]) << ((vertexId[curVertex-1] == -1) ? "  " : "--");
-//         } else if (atLine[turn] == 4) {
-//             out << getStrVertex(vertexId[curVertex++]) << getStrTile(curTile[turn], atLine[turn]);
-//         } else if (atLine[turn] % 2 == 0) {
-//             out << " " << getStrEdge(edgeId[curEdge++]) << " " << getStrTile(curTile[turn], atLine[turn]);
-//         } else {
-//             if ((turn == 0 && (vertexId[curVertex] < 7 || vertexId[curVertex] > 42))
-//                 || (turn == 4 && (curVertex < 7 || curVertex > 55))
-//                 || (turn == 1 && (curVertex < 7 || curVertex > 55))) {
-//                 out << "    ";
-//             } else { out << "  | "; }
-//             out  << getStrTile(curTile[turn], atLine[turn]);
-//         }
-
-//         if (turn == 4) {
-//             if (atLine[turn] % 4 == 0) { out << getStrVertex(vertexId[curVertex++]); }
-//             else if (atLine[turn] % 2 == 0) { out << " " << getStrEdge(edgeId[curEdge++]); }
-//             else if (vertexId[curVertex] < 7 || vertexId[curVertex] > 47) { out << "    "; }
-//             else out << "  | ";
-//         }
-
-//         atLine[turn] = atLine[turn]+1;
-//         if (atLine[turn] == 8) {
-//             atLine[turn] %= 8;
-//             curTile[turn] = (curTile[turn] < 0 ? curTile[turn] + 10 : nextTile[curTile[turn]]);
-//         }   
-//         turn++;
-//         if (turn == 5) {
-//             out << endl; turn = 0;
-//         }
-//     }
-// }
+// returns true if yes, else false
+bool View::processGenericInput(string msg) const {
+    if (msg == "board") { printBoard(); return true; }
+    if (msg == "help") { printHelp(); return true; }
+    return false;
+}
 
 bool View::isNumInRange(string input, int l, int r) const {
     int response;
@@ -150,9 +97,10 @@ int View::getNumRange(string msg, int l, int r) const {
         out << msg;
         string input;
         getline(cin, input);
+        if (processGenericInput(input)) continue;
         if (cin.eof()) return -1;
-        if (isNumInRange(input, l, r)) { return stoi(input);
-        } else { out << "Invalid input.\n"; }
+        if (isNumInRange(input, l, r)) return stoi(input);
+        invalidInput();
     }
     return -1;
 }
@@ -191,15 +139,15 @@ int View::setLoadedDice() const {
     return getNumRange("> ", 2, 12);
 }
 
-void View::print(string s) const {
+void View::printLn(string s) const {
     out << s << endl;
 }
 
-void View::invalidArguments() const {print("Invalid or wrong number of command arguments. ");}
-void View::invalidBuild() const {print("You cannot build here.");}
-void View::invalidResources() const {print("You do not have enough resources.");}
-void View::invalidCommand() const {print("Invalid Command.");}
-void View::successBuild() const {print("Build successful.");}
+void View::invalidArguments() const {printLn("Invalid or wrong number of command arguments. ");}
+void View::invalidBuild() const {printLn("You cannot build here.");}
+void View::invalidResources() const {printLn("You do not have enough resources.");}
+void View::invalidInput() const {printLn("Invalid Input.");}
+void View::successBuild() const {printLn("Build successful.");}
 
 int View::getRobberTile(int invalid) const {
     int response = getNumRange("Choose where to place the Robber.\n", 0, 18);
@@ -215,7 +163,7 @@ int View::getVictim(int p, vector<bool> canSteal) const {
         return 0; //illegal steal returned
     }
     out << "Player " << playerColFull[p] << " can choose to steal from";
-    for (int i = 0; i < canSteal.size(); i++) {
+    for (int i = 0; i < static_cast<int>(canSteal.size()); i++) {
         if (canSteal[i]) out << " " << playerColFull[i];
     }
     out << ". Choose a Player to steal from.\n >";
@@ -252,7 +200,7 @@ void View::gainElem(int resource, int amount) const {
     out << amount << " " << resourceNames[resource] << endl;
 }
 void View::noGains() const {
-    print("No Players gained resources.");
+    printLn("No Players gained resources.");
 }
 
 pair<vector<int>, string> View::getBuildCmd(int p) const {
@@ -274,7 +222,7 @@ pair<vector<int>, string> View::getBuildCmd(int p) const {
         if (inputs.size() != 1) { invalidArguments(); return getBuildCmd(p); }
         return {vector<int>{1}, ""};
     }
-    if (inputs[0] == "residences") {
+    if (inputs[0] == "settlements") {
         if (inputs.size() != 1) { invalidArguments(); return getBuildCmd(p); }
         return {vector<int>{2}, ""};
     }
@@ -291,7 +239,7 @@ pair<vector<int>, string> View::getBuildCmd(int p) const {
         return {vector<int>{5, stoi(inputs[1])}, ""};
     }
     if (inputs[0] == "trade") {
-        if (inputs.size() != 4) { invalidArguments(); return getBuildCmd(p); }
+        if (inputs.size() != 6) { invalidArguments(); return getBuildCmd(p); }
         int a = -1, b = -1, c = -1;
         for (int i = 0; i < 4; i++) {
             if (inputs[1] == validPlayerIn[i][0] || inputs[1] == validPlayerIn[i][1]) {
@@ -300,20 +248,37 @@ pair<vector<int>, string> View::getBuildCmd(int p) const {
         }
         for (int i = 0; i < 5; i++) {
             if (inputs[2] == resourceLower[i]) b = i;
-            if (inputs[3] == resourceLower[i]) c = i;
+            if (inputs[4] == resourceLower[i]) c = i;
         }
-        if (a != -1 && b != -1 && c != -1) return {vector<int>{6, a, b, c}, ""};
+        int b_count = stoi(inputs[3]);
+        int c_count = stoi(inputs[5]);
+        if (a != -1 && b != -1 && c != -1) return {vector<int>{6, a, b, b_count, c, c_count}, ""};
         invalidArguments(); return getBuildCmd(p);
     }
-    if (inputs[0] == "next" && inputs.size() == 1) return {vector<int>{7}, ""};
-    if (inputs[0] == "save" && inputs.size() == 2) return {vector<int>{8}, inputs[1]};
-    if (inputs[0] == "help" && inputs.size() == 1) return {vector<int>{9}, ""};
+    if (inputs[0] == "buydev") {
+        return {vector<int>{7}, ""};
+    }
+    if (inputs[0] == "usedev") {
+        if (inputs.size() != 2) { invalidArguments(); return getBuildCmd(p); }
+        int dc = -1;
+        for (int i = 0; i < 4; i++) {
+            if (inputs[1] == validDevCardIn[i]) {
+                dc = i;
+            }
+        }
+        return {vector<int>{8, dc}, ""};
+    }
+    if (inputs[0] == "next" && inputs.size() == 1) return {vector<int>{9}, ""};
+    if (inputs[0] == "save" && inputs.size() == 2) return {vector<int>{10}, inputs[1]};
+    if (inputs[0] == "help" && inputs.size() == 1) return {vector<int>{11}, ""};
     
-    out << "Invalid command." << endl; return getBuildCmd(p);
+    invalidInput();
+    return getBuildCmd(p);
 }
 
 void View::printHelp() const {
-    out << "Valid commands:\nboard\nstatus\nresidences\nbuild-road <edge#>\nbuild-res <housing#>\nimprove <housing#>\ntrade <colour> <give> <take>\nnext\nsave <file>\nhelp" << endl;
+    out << "Vertex #: 0-53, Edge #: 0-71, Players: blue/red/orange/yellow or b/r/o/y\n";
+    out << "Valid commands (after initial):\nboard\nstatus\nsettlements\nbuild-road <edge#>\nbuild-res <housing#>\nimprove <housing#>\ntrade <colour> <give> <give amount> <take> <take amount>\nbuydev\nusedev <card>\nnext\nsave <file>\nhelp" << endl;
 }
 bool View::playAgain() const {
     out << "Would you like to play again?" << endl;
@@ -328,9 +293,9 @@ bool View::playAgain() const {
     return false;
 }
 
-int View::confirmTrade(int p1, int p2, int r1, int r2) const {
-    out << playerColFull[p1] << " offers " << playerColFull[p2] << " one " << resourceNames[r1]
-    << " for one " << resourceNames[r2] << ".\nDoes " << playerColFull[p2] << " accept this offer?\n> ";
+int View::confirmTrade(int p1, int p2, int r1, int am1, int r2, int am2) const {
+    out << playerColFull[p1] << " offers " << playerColFull[p2] << " " << am1 << " " << resourceNames[r1]
+    << " for " << am2 << " " << resourceNames[r2] << ".\nDoes " << playerColFull[p2] << " accept this offer?\n> ";
 
     string input;
     while (true) {

@@ -24,4 +24,9 @@ const string resourceNames[6] = {"BRICK","GRAIN","LUMBER","ORE","WOOL","DESERT"}
 const string resourceLower[5] = {"brick","grain","lumber","ore","wool"};
 const string resourcePrintFmt[6] = {" BRICK"," GRAIN","LUMBER","  ORE "," WOOL ","DESERT"};
 
+enum DevCard{KNIGHT, VP, RB, YOP, MONOPOLY, DEV_EMPTY = -1};
+const string devCardNames[5] = {"Knight (k)", "Victory Point (vp)", "Road Building (rb)", "Year of Plenty (yp)", "Monopoly (m)"};
+const string validDevCardIn[5] = {"k", "vp", "rb", "yp", "m"};
+
+
 #endif

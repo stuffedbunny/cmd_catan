@@ -18,13 +18,14 @@ class View {
     string getTileHorizontal(int preWhitespace, int tileReps, int *t_count, int *e_count) const;
     string getAllVertical(int preWhitespace, int tileReps) const;
     
-    string toLower(string s) const;
+    bool processGenericInput(string msg) const;
     bool isNumInRange(string in, int l, int r) const;
-    int getNumRange(string msg, int l, int r) const;
-
 public:
     View(Board* board);
     ~View();
+
+    string toLower(string s) const;
+    int getNumRange(string msg, int l, int r) const;
 
     void printBoard() const;
     int getFirst(int p) const;
@@ -32,12 +33,12 @@ public:
     void turnStart(int p, string status) const;
     string getRoll() const;
     int setLoadedDice() const;
-    void print(string s) const;
+    void printLn(string s) const;
     
     void invalidArguments() const;
     void invalidBuild() const;
     void invalidResources() const;
-    void invalidCommand() const;
+    void invalidInput() const;
     void successBuild() const;
 
     int getRobberTile(int invalid) const;
@@ -50,7 +51,7 @@ public:
     void noGains() const;
 
     pair<vector<int>, string> getBuildCmd(int p) const;
-    int confirmTrade(int p1, int p2, int r1, int r2) const;
+    int confirmTrade(int p1, int p2, int r1, int am1, int r2, int am2) const;
     void printHelp() const;
 
     bool playAgain() const;

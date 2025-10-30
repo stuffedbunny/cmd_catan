@@ -15,5 +15,6 @@ ${EXEC}: ${OBJECTS}
 
 -include ${DEPENDS}
 
+CLEANME = $(shell find . -type f -name "*.[do]")
 clean:
-	rm -rf ${DEPENDS} ${OBJECTS} ${EXEC}
+	rm -rf ${CLEANME}
